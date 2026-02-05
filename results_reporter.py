@@ -11,8 +11,9 @@ from experiment_runner import ExperimentResult
 class ResultsReporter:
     """Aggregate and report experiment results."""
 
-    def __init__(self, results: List[ExperimentResult]):
+    def __init__(self, results: List[ExperimentResult], experiment_id: str = None):
         self.results = results
+        self.experiment_id = experiment_id
         self.df = self._to_dataframe()
 
     def _to_dataframe(self) -> pd.DataFrame:
@@ -65,6 +66,8 @@ class ResultsReporter:
         """Print formatted summary to console."""
         print("\n" + "=" * 100)
         print("EXPERIMENT RESULTS SUMMARY")
+        if self.experiment_id:
+            print(f"Experiment: {self.experiment_id}")
         print("=" * 100)
 
         for model in self.df["model"].unique():
@@ -119,14 +122,20 @@ class ResultsReporter:
 
         # Save JSON for programmatic access
         json_path = output_dir / "results.json"
+        json_data = {
+            "experiment_id": self.experiment_id,
+            "results": [r.to_dict() for r in self.results],
+        }
         with open(json_path, "w") as f:
-            json.dump([r.to_dict() for r in self.results], f, indent=2)
+            json.dump(json_data, f, indent=2)
         print(f"Saved JSON to {json_path}")
 
         # Save summary markdown
         md_path = output_dir / "summary.md"
         with open(md_path, "w") as f:
             f.write("# Embedding Quantization Experiment Results\n\n")
+            if self.experiment_id:
+                f.write(f"**Experiment ID:** `{self.experiment_id}`\n\n")
             f.write("## Full Results\n\n")
             f.write(self.df.to_markdown(index=False))
             f.write("\n\n## Best Results by Model\n\n")

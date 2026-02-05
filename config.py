@@ -47,10 +47,11 @@ MODELS = {
 }
 
 # Datasets with approximate sizes
+# Names must match HuggingFace mteb/{name} format
 DATASETS = {
-    "NFCorpus": {"corpus_size": 3633, "query_size": 323},
-    "SciFact": {"corpus_size": 5183, "query_size": 300},
-    "FiQA2018": {"corpus_size": 57638, "query_size": 648},
+    "nfcorpus": {"corpus_size": 3633, "query_size": 323},
+    "scifact": {"corpus_size": 5183, "query_size": 300},
+    "fiqa": {"corpus_size": 57638, "query_size": 648},
 }
 
 # Quantization schemes
