@@ -22,9 +22,9 @@ A Python framework for evaluating embedding quantization techniques and Matryosh
 
 | Dataset | Corpus | Queries | Source |
 |---------|--------|---------|--------|
-| NFCorpus | 3,633 | 323 | MTEB |
-| SciFact | 5,183 | 300 | MTEB |
-| FiQA2018 | 57,638 | 648 | MTEB |
+| `nfcorpus` | 3,633 | 323 | MTEB |
+| `scifact` | 5,183 | 300 | MTEB |
+| `fiqa` | 57,638 | 648 | MTEB |
 
 ## Installation
 
@@ -39,13 +39,16 @@ pip install -r requirements.txt
 python run_experiments.py
 
 # Quick test (smallest dataset, no Matryoshka)
-python run_experiments.py --datasets NFCorpus --no-matryoshka
+python run_experiments.py --datasets nfcorpus --no-matryoshka
 
 # Specific model and quantization
 python run_experiments.py --models mxbai-embed-large-v1 --quantizations binary binary_rescore
 
 # Single dataset with specific model
-python run_experiments.py --datasets SciFact --models all-MiniLM-L6-v2
+python run_experiments.py --datasets scifact --models all-MiniLM-L6-v2
+
+# Named experiment
+python run_experiments.py --experiment-id baseline_v1 --datasets nfcorpus
 ```
 
 ## Output
