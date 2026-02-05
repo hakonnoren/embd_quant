@@ -15,7 +15,7 @@ from config import (
 from data_loader import MTEBDataLoader
 from embedder import Embedder
 from quantization import QuantizationHandler
-from search import BruteForceSearch
+from search_optimized import BruteForceSearch
 from metrics import RetrievalMetrics
 
 

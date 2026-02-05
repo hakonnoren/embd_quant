@@ -10,5 +10,5 @@ tabulate>=0.9.0
 einops>=0.7.0
 
 # Optional: optimized search backends (uncomment as needed)
-# faiss-cpu>=1.7.4       # CPU-optimized similarity search
-# faiss-gpu>=1.7.4       # GPU-optimized (requires CUDA)
+# faiss-cpu              # CPU-optimized similarity search
+# faiss-gpu              # GPU-optimized (requires CUDA, install via conda: conda install -c pytorch faiss-gpu)
