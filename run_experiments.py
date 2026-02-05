@@ -2,7 +2,6 @@
 """Main entry point for running quantization experiments."""
 import argparse
 from pathlib import Path
-from datetime import datetime
 
 from config import MODELS, DATASETS, QUANTIZATION_SCHEMES, CACHE_DIR, RESULTS_DIR
 from experiment_runner import ExperimentRunner
@@ -13,20 +12,17 @@ def generate_experiment_id(args) -> str:
     """Generate a descriptive experiment ID from the run configuration."""
     parts = []
 
-    # Timestamp
-    parts.append(datetime.now().strftime("%Y%m%d_%H%M%S"))
-
     # Models (abbreviated)
     model_abbrev = {
         "mxbai-embed-large-v1": "mxbai",
         "nomic-embed-text-v1.5": "nomic",
         "all-MiniLM-L6-v2": "minilm",
     }
-    models = [model_abbrev.get(m, m[:6]) for m in args.models]
+    models = sorted([model_abbrev.get(m, m[:6]) for m in args.models])
     parts.append("+".join(models))
 
     # Datasets (abbreviated)
-    datasets = [d[:4].lower() for d in args.datasets]
+    datasets = sorted([d[:4].lower() for d in args.datasets])
     parts.append("+".join(datasets))
 
     # Flags
@@ -99,6 +95,12 @@ Examples:
         default=CACHE_DIR,
         help=f"Cache directory for embeddings (default: {CACHE_DIR})",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+        help="Batch size for embedding generation (default: 32, reduce if OOM)",
+    )
 
     args = parser.parse_args()
 
@@ -119,10 +121,11 @@ Examples:
     print(f"Matryoshka combos: {not args.no_matryoshka}")
     print(f"Output dir: {experiment_output_dir}")
     print(f"Cache dir: {args.cache_dir}")
+    print(f"Batch size: {args.batch_size}")
     print()
 
     # Run experiments
-    runner = ExperimentRunner(args.cache_dir)
+    runner = ExperimentRunner(args.cache_dir, batch_size=args.batch_size, output_dir=experiment_output_dir)
     results = runner.run_all_experiments(
         models=args.models,
         datasets=args.datasets,

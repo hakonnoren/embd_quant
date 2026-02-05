@@ -1,7 +1,8 @@
 """Orchestrates quantization experiments."""
+import json
 import numpy as np
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Any, Optional, Set, Tuple
 from pathlib import Path
 
 from config import (
@@ -42,14 +43,64 @@ class ExperimentResult:
             "memory_bytes": self.memory_bytes,
         }
 
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> "ExperimentResult":
+        return ExperimentResult(
+            model=d["model"],
+            dataset=d["dataset"],
+            quantization=d["quantization"],
+            matryoshka_dim=d["matryoshka_dim"],
+            metrics=d["metrics"],
+            latency_seconds=d["latency_seconds"],
+            memory_bytes=d["memory_bytes"],
+        )
+
+    def key(self) -> Tuple[str, str, str, int]:
+        """Unique key for this experiment configuration."""
+        return (self.model, self.dataset, self.quantization, self.matryoshka_dim)
+
 
 class ExperimentRunner:
     """Run quantization experiments across models, datasets, and configurations."""
 
-    def __init__(self, cache_dir: Path = CACHE_DIR):
+    def __init__(self, cache_dir: Path = CACHE_DIR, batch_size: int = 32, output_dir: Path = None):
         self.cache_dir = cache_dir
+        self.batch_size = batch_size
+        self.output_dir = output_dir
         self.data_loader = MTEBDataLoader(cache_dir / "datasets")
         self.results: List[ExperimentResult] = []
+        self.completed: Set[Tuple[str, str, str, int]] = set()
+
+        # Load existing results if output_dir specified
+        if output_dir:
+            self._load_existing_results()
+
+    def _load_existing_results(self):
+        """Load existing results from disk."""
+        results_file = self.output_dir / "results.json"
+        if results_file.exists():
+            with open(results_file) as f:
+                data = json.load(f)
+                results_list = data.get("results", data)  # Handle both formats
+                if isinstance(results_list, list):
+                    for r in results_list:
+                        result = ExperimentResult.from_dict(r)
+                        self.results.append(result)
+                        self.completed.add(result.key())
+            print(f"Loaded {len(self.results)} existing results from {results_file}")
+
+    def _save_results(self):
+        """Save results to disk."""
+        if not self.output_dir:
+            return
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        results_file = self.output_dir / "results.json"
+        with open(results_file, "w") as f:
+            json.dump({"results": [r.to_dict() for r in self.results]}, f, indent=2)
+
+    def _is_completed(self, model: str, dataset: str, quantization: str, dim: int) -> bool:
+        """Check if experiment already completed."""
+        return (model, dataset, quantization, dim) in self.completed
 
     def run_single_experiment(
         self,
@@ -163,6 +214,7 @@ class ExperimentRunner:
                 self.cache_dir / "embeddings",
                 model_config.query_prefix,
                 model_config.doc_prefix,
+                batch_size=self.batch_size,
             )
 
             for dataset_name in datasets:
@@ -191,6 +243,11 @@ class ExperimentRunner:
 
                 for matryoshka_dim in dims_to_test:
                     for quant in quantizations:
+                        # Skip if already completed
+                        if self._is_completed(model_key, dataset_name, quant, matryoshka_dim):
+                            print(f"  Skipping: dim={matryoshka_dim}, quant={quant} (already done)")
+                            continue
+
                         print(f"  Testing: dim={matryoshka_dim}, quant={quant}...", end=" ")
 
                         result = self.run_single_experiment(
@@ -207,6 +264,7 @@ class ExperimentRunner:
                         )
 
                         self.results.append(result)
+                        self.completed.add(result.key())
 
                         # Print summary
                         print(
@@ -215,5 +273,11 @@ class ExperimentRunner:
                             f"Latency: {result.latency_seconds:.3f}s | "
                             f"Mem: {result.memory_bytes / 1024 / 1024:.2f}MB"
                         )
+
+                        # Save incrementally
+                        self._save_results()
+
+            # Unload model after all datasets to free GPU memory
+            embedder.unload_model()
 
         return self.results

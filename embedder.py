@@ -73,6 +73,11 @@ class Embedder:
 
         np.save(cache_path, embeddings)
         print(f"Cached corpus embeddings to {cache_path}")
+
+        # Clear CUDA cache after large embedding jobs
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         return embeddings
 
     def embed_queries(
@@ -103,3 +108,12 @@ class Embedder:
         np.save(cache_path, embeddings)
         print(f"Cached query embeddings to {cache_path}")
         return embeddings
+
+    def unload_model(self):
+        """Unload model and free GPU memory."""
+        if self.model is not None:
+            del self.model
+            self.model = None
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            print("Model unloaded, GPU cache cleared")
