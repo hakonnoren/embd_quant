@@ -24,6 +24,7 @@ class ResultsReporter:
                 "model": r.model,
                 "dataset": r.dataset,
                 "quantization": r.quantization,
+                "rotation": getattr(r, "rotation", "none"),
                 "matryoshka_dim": r.matryoshka_dim,
                 "latency_seconds": r.latency_seconds,
                 "memory_mb": r.memory_bytes / 1024 / 1024,
@@ -82,6 +83,7 @@ class ResultsReporter:
                 cols = [
                     "matryoshka_dim",
                     "quantization",
+                    "rotation",
                     "recall@10",
                     "recall@100",
                     "ndcg@10",
@@ -112,7 +114,11 @@ class ResultsReporter:
                 print(display_df.to_string(index=False))
 
     def save_results(self, output_dir: Path) -> None:
-        """Save results to files."""
+        """Save results to files.
+
+        Note: JSON is saved by ExperimentRunner incrementally for crash recovery.
+        This method only saves CSV and Markdown summaries.
+        """
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Save full CSV
@@ -120,15 +126,19 @@ class ResultsReporter:
         self.df.to_csv(csv_path, index=False)
         print(f"Saved CSV to {csv_path}")
 
-        # Save JSON for programmatic access
+        # JSON is saved by ExperimentRunner._save_results() - don't duplicate
         json_path = output_dir / "results.json"
-        json_data = {
-            "experiment_id": self.experiment_id,
-            "results": [r.to_dict() for r in self.results],
-        }
-        with open(json_path, "w") as f:
-            json.dump(json_data, f, indent=2)
-        print(f"Saved JSON to {json_path}")
+        if json_path.exists():
+            print(f"JSON already saved to {json_path}")
+        else:
+            # Fallback: save JSON if ExperimentRunner didn't (shouldn't happen)
+            json_data = {
+                "experiment_id": self.experiment_id,
+                "results": [r.to_dict() for r in self.results],
+            }
+            with open(json_path, "w") as f:
+                json.dump(json_data, f, indent=2)
+            print(f"Saved JSON to {json_path}")
 
         # Save summary markdown
         md_path = output_dir / "summary.md"

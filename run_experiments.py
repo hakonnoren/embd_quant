@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from config import MODELS, DATASETS, QUANTIZATION_SCHEMES, CACHE_DIR, RESULTS_DIR
+from config import MODELS, DATASETS, QUANTIZATION_SCHEMES, ROTATION_METHODS, CACHE_DIR, RESULTS_DIR
 from experiment_runner import ExperimentRunner
 from results_reporter import ResultsReporter
 
@@ -29,6 +29,13 @@ def generate_experiment_id(args) -> str:
     if args.no_matryoshka:
         parts.append("no-mrl")
 
+    # Rotation (if not just "none")
+    if args.rotations and args.rotations != ["none"]:
+        rot_abbrev = {"hadamard": "had", "qr": "qr", "none": ""}
+        rots = sorted([rot_abbrev.get(r, r) for r in args.rotations if r != "none"])
+        if rots:
+            parts.append("rot-" + "+".join(rots))
+
     return "_".join(parts)
 
 
@@ -38,7 +45,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run all experiments (auto-generates experiment ID like 20240115_143052_mxbai+nomic+minilm_nfco+scif+fiqa)
+  # Run all experiments (auto-generates experiment ID)
   python run_experiments.py
 
   # Quick test on smallest dataset
@@ -49,6 +56,9 @@ Examples:
 
   # Specific model and quantization
   python run_experiments.py --models mxbai-embed-large-v1 --quantizations binary binary_rescore
+
+  # Test rotation methods for binary quantization
+  python run_experiments.py --quantizations binary --rotations none qr hadamard
 """,
     )
     parser.add_argument(
@@ -101,6 +111,13 @@ Examples:
         default=32,
         help="Batch size for embedding generation (default: 32, reduce if OOM)",
     )
+    parser.add_argument(
+        "--rotations",
+        nargs="+",
+        choices=ROTATION_METHODS,
+        default=["none"],
+        help="Rotation methods for binary quantization (default: none). Options: none, qr, hadamard",
+    )
 
     args = parser.parse_args()
 
@@ -118,6 +135,7 @@ Examples:
     print(f"Models: {args.models}")
     print(f"Datasets: {args.datasets}")
     print(f"Quantizations: {args.quantizations}")
+    print(f"Rotations: {args.rotations}")
     print(f"Matryoshka combos: {not args.no_matryoshka}")
     print(f"Output dir: {experiment_output_dir}")
     print(f"Cache dir: {args.cache_dir}")
@@ -125,12 +143,13 @@ Examples:
     print()
 
     # Run experiments
-    runner = ExperimentRunner(args.cache_dir, batch_size=args.batch_size, output_dir=experiment_output_dir)
+    runner = ExperimentRunner(args.cache_dir, batch_size=args.batch_size, output_dir=experiment_output_dir, experiment_id=args.experiment_id)
     results = runner.run_all_experiments(
         models=args.models,
         datasets=args.datasets,
         quantizations=args.quantizations,
         include_matryoshka_combos=not args.no_matryoshka,
+        rotations=args.rotations,
     )
 
     if not results:

@@ -87,6 +87,56 @@ class BruteForceSearch:
         return indices, scores, latency
 
     @staticmethod
+    def search_int8_asymmetric(
+        float_query: np.ndarray, int8_corpus: np.ndarray, k: int
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Asymmetric search: float32 queries against int8 corpus."""
+        c = int8_corpus.astype(np.float32)
+        return BruteForceSearch.search_float(float_query, c, k)
+
+    @staticmethod
+    def search_binary_asymmetric(
+        float_query: np.ndarray, binary_corpus: np.ndarray, k: int
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Asymmetric search: float32 queries against binary corpus.
+
+        Unpacks binary to ±1 and computes dot product.
+        FAISS IndexBinaryFlat only supports Hamming, so this is pure NumPy.
+        """
+        start = time.perf_counter()
+        k = min(k, binary_corpus.shape[0])
+
+        # Unpack binary corpus to ±1 floats
+        unpacked = np.unpackbits(binary_corpus, axis=1).astype(np.float32)
+        unpacked = 2.0 * unpacked - 1.0  # {0,1} -> {-1,+1}
+
+        # Truncate unpacked to match query dim (unpackbits may pad)
+        query_dim = float_query.shape[1]
+        unpacked = unpacked[:, :query_dim]
+
+        similarities = float_query @ unpacked.T
+        indices = np.argpartition(-similarities, k, axis=1)[:, :k]
+        for i in range(len(indices)):
+            idx = indices[i]
+            indices[i] = idx[np.argsort(-similarities[i, idx])]
+        scores = np.take_along_axis(similarities, indices, axis=1)
+
+        latency = time.perf_counter() - start
+        return indices, scores, latency
+
+    @staticmethod
+    def search_2bit_asymmetric(
+        float_query: np.ndarray, reconstructed_corpus: np.ndarray, k: int
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Asymmetric search: float32 queries against reconstructed 2-bit corpus.
+
+        The caller is responsible for reconstructing the corpus from codes
+        (quaternary centroids or Lloyd-Max levels). This method just does
+        the dot-product search on the resulting float32 matrix.
+        """
+        return BruteForceSearch.search_float(float_query, reconstructed_corpus, k)
+
+    @staticmethod
     def search_binary_with_rescore(
         binary_query: np.ndarray,
         binary_corpus: np.ndarray,

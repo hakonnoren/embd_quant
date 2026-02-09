@@ -1,7 +1,8 @@
 """MTEB dataset loading utilities with caching."""
 import pickle
+import numpy as np
 from pathlib import Path
-from typing import Dict, Tuple, List
+from typing import Dict, Optional, Set, Tuple, List
 from datasets import load_dataset
 from tqdm import tqdm
 
@@ -13,19 +14,30 @@ class MTEBDataLoader:
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def load_dataset(self, dataset_name: str) -> Tuple[Dict, Dict, Dict]:
+    def load_dataset(
+        self, dataset_name: str, subsample: Optional[int] = None, seed: int = 42
+    ) -> Tuple[Dict, Dict, Dict]:
         """
         Load corpus, queries, and qrels for a dataset.
+
+        Args:
+            dataset_name: MTEB dataset name (must match mteb/{name} on HuggingFace)
+            subsample: If set, subsample the corpus to this many documents.
+                All documents referenced by qrels are always retained so that
+                metrics remain valid. Additional documents are sampled randomly
+                to fill up to the requested size.
+            seed: Random seed for reproducible subsampling.
 
         Returns:
             corpus: Dict[str, Dict] with 'title' and 'text' fields
             queries: Dict[str, str] mapping query_id to text
             qrels: Dict[str, Dict[str, int]] mapping query_id -> doc_id -> relevance
         """
-        cache_path = self.cache_dir / f"{dataset_name}_data.pkl"
+        suffix = f"_sub{subsample}" if subsample else ""
+        cache_path = self.cache_dir / f"{dataset_name}{suffix}_data.pkl"
 
         if cache_path.exists():
-            print(f"Loading cached {dataset_name} from {cache_path}")
+            print(f"Loading cached {dataset_name}{suffix} from {cache_path}")
             with open(cache_path, "rb") as f:
                 return pickle.load(f)
 
@@ -61,12 +73,45 @@ class MTEBDataLoader:
                 qrels[qid] = {}
             qrels[qid][did] = score
 
+        # Subsample corpus if requested
+        if subsample and len(corpus) > subsample:
+            corpus = self._subsample_corpus(corpus, qrels, subsample, seed)
+
         # Cache for future use
         with open(cache_path, "wb") as f:
             pickle.dump((corpus, queries, qrels), f)
 
-        print(f"Cached {dataset_name} to {cache_path}")
+        print(f"Cached {dataset_name}{suffix} to {cache_path} ({len(corpus)} docs)")
         return corpus, queries, qrels
+
+    @staticmethod
+    def _subsample_corpus(
+        corpus: Dict, qrels: Dict, n: int, seed: int
+    ) -> Dict:
+        """Subsample corpus to n documents, always keeping qrel-referenced docs."""
+        # Collect all doc IDs referenced by qrels
+        required_ids: Set[str] = set()
+        for qid_rels in qrels.values():
+            required_ids.update(qid_rels.keys())
+        # Keep only those that exist in the corpus
+        required_ids &= set(corpus.keys())
+
+        if len(required_ids) >= n:
+            print(f"  Subsampling: qrels reference {len(required_ids)} docs "
+                  f"(>= requested {n}), keeping all qrel docs only")
+            return {did: corpus[did] for did in required_ids}
+
+        # Fill remaining slots with random non-qrel documents
+        other_ids = list(set(corpus.keys()) - required_ids)
+        n_extra = n - len(required_ids)
+        rng = np.random.default_rng(seed)
+        sampled_ids = rng.choice(other_ids, size=min(n_extra, len(other_ids)), replace=False)
+
+        keep_ids = required_ids | set(sampled_ids.tolist())
+        subsampled = {did: corpus[did] for did in corpus if did in keep_ids}
+        print(f"  Subsampled corpus: {len(corpus)} -> {len(subsampled)} docs "
+              f"({len(required_ids)} from qrels + {len(sampled_ids)} random)")
+        return subsampled
 
     def get_texts_for_embedding(
         self, corpus: Dict, queries: Dict

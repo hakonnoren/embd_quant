@@ -52,11 +52,25 @@ DATASETS = {
     "nfcorpus": {"corpus_size": 3633, "query_size": 323},
     "scifact": {"corpus_size": 5183, "query_size": 300},
     "fiqa": {"corpus_size": 57638, "query_size": 648},
+    "quora": {"corpus_size": 522931, "query_size": 10000},
+    "arguana": {"corpus_size": 8674, "query_size": 1406},
+    "trec-covid": {"corpus_size": 171332, "query_size": 50},
+    "msmarco": {"corpus_size": 8841823, "query_size": 6980, "subsample": 1_000_000},
+    "dbpedia": {"corpus_size": 4635922, "query_size": 400, "subsample": 1_000_000},
 }
 
+# Default corpus subsample size for large datasets.
+# Set to None to use full corpus. Only applies to datasets with "subsample" key.
+DEFAULT_SUBSAMPLE = 1_000_000
+
 # Quantization schemes
-QUANTIZATION_SCHEMES = ["float32", "int8", "binary", "binary_rescore"]
+QUANTIZATION_SCHEMES = ["float32", "int8", "int8_asym", "binary", "binary_asym", "binary_rescore", "binary_median", "binary_median_asym", "quaternary_asym", "lloyd_max_gauss"]
+
+# Rotation methods for binary quantization
+# "none" = no rotation, "qr" = random orthogonal, "hadamard" = fast Walsh-Hadamard
+ROTATION_METHODS = ["none", "qr", "hadamard"]
 
 # Evaluation parameters
 K_VALUES = [10, 100]
 RESCORE_MULTIPLIER = 4  # For binary retrieval rescoring
+ROTATION_SEED = 42  # Fixed seed for reproducibility

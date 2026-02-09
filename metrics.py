@@ -63,7 +63,8 @@ class RetrievalMetrics:
             )
 
             if relevances.sum() == 0:
-                # No relevant docs retrieved
+                # No relevant docs retrieved — counts as 0 (not skipped)
+                ndcg_scores.append(0.0)
                 continue
 
             # Compute DCG
