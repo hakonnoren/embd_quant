@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vespa Cloud - Compression Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <link rel="stylesheet" href="https://cloud.vespa.ai/css/typography.css">
+    <style>
+        :root {
+            --brand-dark: #2e2f27;
+            --brand-green: #61d790;
+            --brand-green-dim: #3da568;
+            --brand-bg: #f5f6f8;
+            --brand-card: #ffffff;
+            --brand-text: #2e2f27;
+            --brand-text-light: #666;
+            --brand-border: #e0e0e0;
+            --nav-bg: #2e2f27;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Roobert', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--brand-bg);
+            color: var(--brand-text);
+            line-height: 1.6;
+        }
+
+        /* Nav */
+        nav {
+            background: var(--nav-bg);
+            padding: 0 40px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+        .nav-brand svg { height: 32px; }
+        .nav-brand span {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+        .nav-links {
+            display: flex;
+            gap: 28px;
+            align-items: center;
+        }
+        .nav-links a {
+            color: #ccc;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--brand-green);
+        }
+        .nav-login {
+            background: transparent;
+            border: 1px solid var(--brand-green);
+            color: var(--brand-green);
+            padding: 6px 18px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        /* Hero */
+        .hero {
+            background: var(--brand-bg);
+            padding: 60px 40px 50px;
+            text-align: center;
+            color: var(--brand-text);
+        }
+        .hero h1 {
+            font-size: 36px;
+            font-weight: 400;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+            color: #2e2f27;
+        }
+        .hero h1 span { color: var(--brand-green); }
+        .hero p {
+            font-size: 17px;
+            color: #555;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        /* Main layout */
+        .main-container {
+            max-width: 1200px;
+            margin: -30px auto 40px;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 24px;
+        }
+
+        /* Config panel */
+        .config-panel {
+            background: var(--brand-card);
+            border-radius: 12px;
+            padding: 28px 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            height: fit-content;
+            position: sticky;
+            top: 80px;
+        }
+        .config-panel h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--brand-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .config-panel h3 .icon {
+            width: 20px; height: 20px;
+            background: var(--brand-green);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--brand-text-light);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-group select, .form-group input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--brand-border);
+            border-radius: 6px;
+            font-size: 14px;
+            color: var(--brand-text);
+            background: #fafafa;
+            appearance: auto;
+            transition: border-color 0.2s;
+        }
+        .form-group select:focus, .form-group input:focus {
+            outline: none;
+            border-color: var(--brand-green);
+            box-shadow: 0 0 0 3px rgba(97, 215, 144, 0.15);
+        }
+
+        .btn-calculate {
+            width: 100%;
+            padding: 12px;
+            background: var(--brand-green);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            margin-top: 4px;
+        }
+        .btn-calculate:hover {
+            background: var(--brand-green-dim);
+        }
+        .btn-calculate:active {
+            transform: scale(0.98);
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--brand-border);
+            margin: 20px 0;
+        }
+
+        .info-box {
+            background: #f0faf4;
+            border-left: 3px solid var(--brand-green);
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            font-size: 12.5px;
+            color: #3a6b4a;
+            margin-top: 16px;
+            line-height: 1.5;
+        }
+
+        /* Results panel */
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--brand-card);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card h3 .badge {
+            font-size: 11px;
+            background: #e8f5ee;
+            color: var(--brand-green-dim);
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        /* Chart */
+        .chart-container {
+            position: relative;
+            height: 380px;
+        }
+
+        /* Recommendations table */
+        .rec-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 13.5px;
+        }
+        .rec-table thead th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--brand-text-light);
+            border-bottom: 2px solid var(--brand-border);
+            font-weight: 600;
+        }
+        .rec-table tbody tr {
+            transition: background 0.15s;
+        }
+        .rec-table tbody tr:hover {
+            background: #f8faf9;
+        }
+        .rec-table tbody td {
+            padding: 12px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+        .rec-table .pipeline-name {
+            font-weight: 600;
+            color: var(--brand-text);
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 12.5px;
+        }
+        .rec-table .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .tag-recommended {
+            background: #e8f5ee;
+            color: #2d8a54;
+        }
+        .tag-quality {
+            background: #e3f0ff;
+            color: #2563a8;
+        }
+        .tag-budget {
+            background: #fff3e0;
+            color: #c67a1a;
+        }
+        .tag-extreme {
+            background: #fce4ec;
+            color: #b33a3a;
+        }
+
+        .retention-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .retention-bar-bg {
+            flex: 1;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+            max-width: 80px;
+        }
+        .retention-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.6s ease;
+        }
+
+        .cost-cell {
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-weight: 600;
+        }
+        .savings {
+            color: var(--brand-green-dim);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Summary cards */
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .summary-card {
+            background: var(--brand-card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--brand-green-dim);
+            margin-bottom: 4px;
+        }
+        .summary-card .label {
+            font-size: 12px;
+            color: var(--brand-text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .summary-card .sub {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--nav-bg);
+            padding: 40px;
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-top: 20px;
+        }
+        footer a { color: var(--brand-green); text-decoration: none; }
+
+        /* Tooltip for chart */
+        .method-tooltip {
+            font-size: 12px;
+        }
+
+        /* Loading animation */
+        @keyframes shimmer {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .calculating .btn-calculate {
+            animation: shimmer 1s infinite;
+        }
+
+        /* Annotation arrow in chart area */
+        .knee-annotation {
+            position: absolute;
+            font-size: 12px;
+            color: var(--brand-green-dim);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+    <a class="nav-brand" href="#">
+        <svg width="165" height="40" viewBox="0 0 165 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g clip-path="url(#clip0_75_4321)">
+                <path d="M74.9646 31.446L65.3706 5.81958H69.3552L77.1786 27.6389L85.0748 5.81958H88.9865L79.3926 31.446H74.9646Z" fill="#61D790"/>
+                <path d="M96.8099 31.8845C95.0393 31.8845 93.4646 31.4822 92.0873 30.6762C90.71 29.8702 89.6334 28.7493 88.8589 27.3076C88.0845 25.8673 87.6973 24.195 87.6973 22.2923C87.6973 20.3895 88.0845 18.6374 88.8589 17.1851C89.6334 15.7328 90.71 14.5983 92.0873 13.7803C93.4646 12.9622 95.0636 12.554 96.8843 12.554C98.705 12.554 100.266 12.9562 101.57 13.7622C102.873 14.5682 103.883 15.6348 104.597 16.9651C105.31 18.2954 105.667 19.7658 105.667 21.3763C105.667 21.6204 105.661 21.884 105.649 22.1627C105.637 22.4444 105.617 22.7548 105.594 23.0968H90.3911V20.498H101.977C101.903 18.9598 101.387 17.7591 100.427 16.8928C99.4672 16.0265 98.2737 15.5927 96.8478 15.5927C95.8395 15.5927 94.9163 15.8186 94.0796 16.2706C93.2429 16.7226 92.5732 17.3809 92.0691 18.2472C91.5649 19.1135 91.3128 20.2057 91.3128 21.5239V22.5484C91.3128 23.9148 91.5649 25.0688 92.0691 26.0074C92.5732 26.9475 93.2429 27.6556 94.0796 28.1301C94.9163 28.6062 95.8259 28.8443 96.8099 28.8443C97.9913 28.8443 98.9616 28.5881 99.7254 28.0759C100.488 27.5637 101.054 26.8677 101.423 25.9893H105.113C104.793 27.1117 104.252 28.1181 103.49 29.01C102.727 29.9019 101.786 30.6024 100.667 31.1146C99.5477 31.6268 98.2615 31.883 96.8114 31.883L96.8099 31.8845Z" fill="#61D790"/>
+                <path d="M115.998 31.8845C114.423 31.8845 113.046 31.6284 111.865 31.1161C110.683 30.6039 109.749 29.8838 109.06 28.9557C108.371 28.0277 107.953 26.9415 107.806 25.6971H111.57C111.693 26.2831 111.933 26.8195 112.29 27.3076C112.647 27.7957 113.139 28.1859 113.766 28.4797C114.393 28.7719 115.137 28.9196 115.998 28.9196C116.81 28.9196 117.48 28.8036 118.009 28.5716C118.537 28.3396 118.924 28.0232 119.17 27.6194C119.416 27.2172 119.539 26.7833 119.539 26.3193C119.539 25.6368 119.374 25.1171 119.041 24.763C118.709 24.409 118.217 24.1288 117.565 23.9209C116.914 23.7145 116.132 23.5246 115.222 23.3529C114.361 23.2068 113.53 23.0049 112.732 22.7488C111.931 22.4926 111.219 22.1687 110.592 21.7785C109.965 21.3884 109.467 20.8942 109.098 20.2961C108.729 19.698 108.545 18.9598 108.545 18.0815C108.545 17.0329 108.828 16.0868 109.394 15.2446C109.959 14.4025 110.765 13.7441 111.811 13.2681C112.856 12.792 114.092 12.554 115.52 12.554C117.586 12.554 119.246 13.0421 120.502 14.0183C121.756 14.9946 122.494 16.3731 122.716 18.1553H119.137C119.038 17.3252 118.669 16.6849 118.03 16.2329C117.391 15.781 116.542 15.555 115.483 15.555C114.425 15.555 113.614 15.7629 113.048 16.1772C112.481 16.593 112.199 17.1414 112.199 17.8254C112.199 18.2653 112.358 18.6555 112.679 18.9975C112.997 19.3394 113.471 19.6257 114.1 19.8577C114.727 20.0897 115.495 20.3036 116.407 20.498C117.709 20.742 118.879 21.0479 119.911 21.414C120.944 21.7801 121.768 22.3164 122.383 23.0245C122.998 23.7325 123.305 24.7449 123.305 26.0632C123.329 27.2112 123.041 28.2236 122.438 29.1019C121.835 29.9802 120.986 30.6642 119.892 31.1523C118.797 31.6404 117.498 31.8845 115.998 31.8845Z" fill="#61D790"/>
+                <path d="M126.697 39.5V12.9953H130.018L130.387 15.8502C130.781 15.2898 131.273 14.758 131.863 14.2578C132.454 13.7576 133.16 13.3494 133.985 13.0315C134.809 12.7151 135.773 12.5554 136.882 12.5554C138.653 12.5554 140.209 12.9833 141.55 13.8375C142.891 14.6917 143.935 15.8457 144.687 17.2965C145.437 18.7488 145.812 20.403 145.812 22.2576C145.812 24.1121 145.431 25.7663 144.669 27.2187C143.907 28.671 142.854 29.8114 141.513 30.6415C140.173 31.4716 138.616 31.8859 136.845 31.8859C135.394 31.8859 134.115 31.5982 133.008 31.0257C131.901 30.4532 131.028 29.6532 130.389 28.6273V39.5H126.699H126.697ZM136.255 28.7011C137.386 28.7011 138.388 28.4329 139.261 27.8951C140.135 27.3588 140.824 26.6025 141.328 25.6247C141.832 24.6485 142.084 23.514 142.084 22.2199C142.084 20.9258 141.832 19.7974 141.328 18.8332C140.824 17.869 140.135 17.1127 139.261 16.5628C138.388 16.0129 137.385 15.7388 136.255 15.7388C135.125 15.7388 134.083 16.0129 133.21 16.5628C132.337 17.1112 131.654 17.869 131.162 18.8332C130.67 19.7974 130.424 20.9258 130.424 22.2199C130.424 23.514 130.67 24.6485 131.162 25.6247C131.654 26.601 132.336 27.3573 133.21 27.8951C134.083 28.4329 135.098 28.7011 136.255 28.7011Z" fill="#61D790"/>
+                <path d="M155.332 31.8844C153.806 31.8844 152.539 31.6283 151.531 31.1161C150.523 30.6039 149.772 29.9139 149.28 29.0476C148.788 28.1813 148.542 27.2488 148.542 26.2469C148.542 25.0266 148.861 23.9826 149.502 23.1163C150.141 22.2501 151.053 21.5857 152.232 21.1217C153.414 20.6576 154.828 20.4256 156.475 20.4256H161.309C161.309 19.3515 161.148 18.4611 160.829 17.753C160.508 17.0449 160.036 16.5146 159.407 16.1606C158.78 15.8066 157.986 15.6303 157.028 15.6303C155.921 15.6303 154.973 15.8924 154.187 16.4167C153.399 16.9425 152.907 17.7169 152.711 18.7413H149.021C149.168 17.4487 149.618 16.3429 150.368 15.4284C151.118 14.5124 152.084 13.8059 153.265 13.3057C154.446 12.8055 155.701 12.5554 157.029 12.5554C158.776 12.5554 160.24 12.8612 161.421 13.4714C162.602 14.0816 163.494 14.9418 164.097 16.0521C164.699 17.1624 165 18.4867 165 20.0249V31.4475H161.79L161.495 28.335C161.225 28.8231 160.905 29.2871 160.536 29.7255C160.167 30.164 159.729 30.5436 159.225 30.86C158.721 31.1779 158.143 31.4279 157.491 31.6102C156.84 31.794 156.12 31.8844 155.333 31.8844H155.332ZM156.033 28.9195C156.82 28.9195 157.534 28.7614 158.173 28.4435C158.812 28.1271 159.359 27.6932 159.814 27.1433C160.27 26.5949 160.613 25.9712 160.847 25.2767C161.081 24.5807 161.21 23.8666 161.234 23.1344V23.0244H156.843C155.784 23.0244 154.929 23.1525 154.278 23.4086C153.626 23.6647 153.153 24.0127 152.857 24.4511C152.562 24.891 152.413 25.4033 152.413 25.9893C152.413 26.5754 152.554 27.1177 152.837 27.5456C153.119 27.9734 153.532 28.3094 154.073 28.5519C154.613 28.796 155.266 28.918 156.029 28.918L156.033 28.9195Z" fill="#61D790"/>
+                <path d="M10.6296 26.1114H44.0368L33.4073 36.6572H0V21.5917L10.6296 11.0459V26.1114Z" fill="#61D790"/>
+                <path d="M54.6662 0.5V15.5655L44.0367 26.1113V11.0458H10.6294L21.259 0.5H54.6662Z" fill="#61D790"/>
+            </g>
+            <defs>
+                <clipPath id="clip0_75_4321">
+                    <rect width="165" height="39" fill="white" transform="translate(0 0.5)"/>
+                </clipPath>
+            </defs>
+        </svg>
+    </a>
+    <div class="nav-links">
+        <a href="#">Get Started</a>
+        <a href="#">Documentation</a>
+        <a href="#" class="active">Pricing</a>
+        <a href="#">Support</a>
+        <a href="#" class="nav-login">Log in</a>
+    </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+    <h1>Compression <span>Calculator</span></h1>
+    <p>Find the optimal cost-accuracy trade-off for your vector search workload. Configure your setup and we'll compute the Pareto-optimal compression strategies.</p>
+</div>
+
+<!-- Main Content -->
+<div class="main-container">
+
+    <!-- Left: Configuration -->
+    <div class="config-panel">
+        <h3><span class="icon">1</span> Configure Your Workload</h3>
+
+        <div class="form-group">
+            <label>Embedding Model</label>
+            <select id="model-select" onchange="updateDimensions()">
+                <option value="mxbai-1024" selected>mxbai-embed-large-v1 (1024d)</option>
+                <option value="nomic-768">nomic-embed-text-v1.5 (768d)</option>
+                <option value="e5-1024">e5-large-v2 (1024d)</option>
+                <option value="cohere-1024">Cohere embed-v3 (1024d)</option>
+                <option value="openai-3072">OpenAI text-embedding-3-large (3072d)</option>
+                <option value="openai-1536">OpenAI text-embedding-3-small (1536d)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Number of Vectors</label>
+            <select id="num-vectors">
+                <option value="100000">100,000</option>
+                <option value="1000000" selected>1,000,000</option>
+                <option value="10000000">10,000,000</option>
+                <option value="100000000">100,000,000</option>
+                <option value="1000000000">1,000,000,000</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Max Embedding Dimension</label>
+            <select id="max-dim">
+                <option value="1024" selected>1024</option>
+                <option value="768">768</option>
+                <option value="512">512</option>
+                <option value="256">256</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Vespa Cloud Plan</label>
+            <select id="plan-select">
+                <option value="basic">Basic</option>
+                <option value="commercial" selected>Commercial</option>
+                <option value="enterprise">Enterprise</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Priority</label>
+            <select id="priority-select">
+                <option value="balanced" selected>Balanced (recommended)</option>
+                <option value="quality">Quality-first</option>
+                <option value="cost">Cost-first</option>
+            </select>
+        </div>
+
+        <div class="divider"></div>
+
+        <button class="btn-calculate" onclick="calculate()">Calculate Optimal Compression</button>
+
+        <div class="info-box">
+            Costs are based on Vespa Cloud pricing: RAM at $0.01/GB/hr (ANN index) and Disk at $0.0004/GB/hr (rescore vectors). RAM is 25x more expensive, making index format the dominant cost lever.
+        </div>
+    </div>
+
+    <!-- Right: Results -->
+    <div class="results-panel">
+
+        <!-- Summary row -->
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="value" id="summary-savings">250x</div>
+                <div class="label">Cost Reduction</div>
+                <div class="sub">vs float32 baseline</div>
+            </div>
+            <div class="summary-card">
+                <div class="value" id="summary-cost">$0.11</div>
+                <div class="label">Monthly Cost</div>
+                <div class="sub">per 1M vectors</div>
+            </div>
+            <div class="summary-card">
+                <div class="value" id="summary-retention">98.1%</div>
+                <div class="label">Quality Retention</div>
+                <div class="sub">NDCG@10 vs float32</div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card">
+            <h3>
+                Cost vs Accuracy Pareto Front
+                <span class="badge">Live Simulation</span>
+            </h3>
+            <div class="chart-container">
+                <canvas id="paretoChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="card">
+            <h3>
+                Recommended Configurations
+                <span class="badge">Top 5 Pareto-Optimal</span>
+            </h3>
+            <table class="rec-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Pipeline</th>
+                        <th>Dim</th>
+                        <th>Quality Retention</th>
+                        <th>Cost / mo</th>
+                        <th>Savings</th>
+                        <th>Use Case</th>
+                    </tr>
+                </thead>
+                <tbody id="rec-body">
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Scaling table -->
+        <div class="card">
+            <h3>Cost Scaling by Corpus Size</h3>
+            <table class="rec-table">
+                <thead>
+                    <tr>
+                        <th>Corpus Size</th>
+                        <th>2-bit &rarr; int8 @ 256d</th>
+                        <th>binary &rarr; residual &rarr; int8 @ 64d</th>
+                        <th>float32 @ 1024d</th>
+                    </tr>
+                </thead>
+                <tbody id="scaling-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer>
+    <p>Copyright Vespa.ai &mdash; <a href="#">Privacy</a> | <a href="#">Documentation</a> | <a href="#">Slack</a> | <a href="#">GitHub</a></p>
+    <p style="margin-top: 8px; color: #555;">Compression Calculator is a simulation tool. Actual results may vary based on data distribution and query patterns.</p>
+</footer>
+
+<script>
+// Pareto front data points (from the analysis)
+const paretoData = [
+    { pipeline: 'float32', dim: 1024, retention: 100.0, cost: 27.47, label: 'float32 @ 1024d' },
+    { pipeline: '2-bit→int8', dim: 256, retention: 102.0, cost: 0.46, label: '2-bit→int8 @ 256d' },
+    { pipeline: '2-bit→int8', dim: 128, retention: 99.5, cost: 0.28, label: '2-bit→int8 @ 128d' },
+    { pipeline: 'binary→residual→float32', dim: 256, retention: 101.1, cost: 0.23, label: 'binary→residual→fp32 @ 256d' },
+    { pipeline: 'binary→residual→int8', dim: 256, retention: 101.0, cost: 0.22, label: 'binary→residual→int8 @ 256d' },
+    { pipeline: 'binary→int8', dim: 256, retention: 100.5, cost: 0.35, label: 'binary→int8 @ 256d' },
+    { pipeline: 'binary→residual→int8', dim: 128, retention: 98.1, cost: 0.11, label: 'binary→residual→int8 @ 128d' },
+    { pipeline: 'binary→residual→int8', dim: 64, retention: 89.0, cost: 0.06, label: 'binary→residual→int8 @ 64d' },
+    { pipeline: 'binary→residual→2-bit', dim: 64, retention: 87.5, cost: 0.05, label: 'binary→residual→2-bit @ 64d' },
+    { pipeline: 'binary→binary', dim: 64, retention: 82.0, cost: 0.04, label: 'binary→binary @ 64d' },
+    { pipeline: 'binary→binary', dim: 32, retention: 71.4, cost: 0.03, label: 'binary→binary @ 32d' },
+    // Additional non-pareto points for visual context
+    { pipeline: '2-bit→float32', dim: 256, retention: 101.5, cost: 0.60, label: '2-bit→fp32 @ 256d', dominated: true },
+    { pipeline: 'binary→float32', dim: 256, retention: 100.2, cost: 0.42, label: 'binary→fp32 @ 256d', dominated: true },
+    { pipeline: '2-bit→int8', dim: 64, retention: 85.0, cost: 0.12, label: '2-bit→int8 @ 64d', dominated: true },
+    { pipeline: 'binary→int8', dim: 128, retention: 96.5, cost: 0.18, label: 'binary→int8 @ 128d', dominated: true },
+    { pipeline: 'binary→float32', dim: 128, retention: 97.0, cost: 0.20, label: 'binary→fp32 @ 128d', dominated: true },
+    { pipeline: '2-bit→none', dim: 256, retention: 92.0, cost: 1.72, label: '2-bit (no rescore) @ 256d', dominated: true },
+    { pipeline: 'binary→residual→int8', dim: 48, retention: 83.0, cost: 0.045, label: 'binary→residual→int8 @ 48d', dominated: true },
+];
+
+const recommendations = [
+    { rank: 1, pipeline: '2-bit → int8', dim: '256d', retention: 102.0, cost: 0.46, savings: '60x', tag: 'Quality', tagClass: 'tag-quality', useCase: 'Maximum quality' },
+    { rank: 2, pipeline: 'binary → residual → int8', dim: '256d', retention: 101.0, cost: 0.22, savings: '125x', tag: 'Recommended', tagClass: 'tag-recommended', useCase: 'Best quality per dollar' },
+    { rank: 3, pipeline: 'binary → residual → int8', dim: '128d', retention: 98.1, cost: 0.11, savings: '250x', tag: 'Recommended', tagClass: 'tag-recommended', useCase: 'Near-lossless, minimal cost' },
+    { rank: 4, pipeline: 'binary → residual → int8', dim: '64d', retention: 89.0, cost: 0.06, savings: '458x', tag: 'Knee', tagClass: 'tag-recommended', useCase: 'Best trade-off point' },
+    { rank: 5, pipeline: 'binary → binary', dim: '32d', retention: 71.4, cost: 0.03, savings: '916x', tag: 'Budget', tagClass: 'tag-budget', useCase: 'Extreme cost pressure' },
+];
+
+function updateDimensions() {
+    const model = document.getElementById('model-select').value;
+    const dimSelect = document.getElementById('max-dim');
+    const dims = {
+        'mxbai-1024': [1024, 768, 512, 256],
+        'nomic-768': [768, 512, 256, 128],
+        'e5-1024': [1024, 768, 512, 256],
+        'cohere-1024': [1024, 768, 512, 256],
+        'openai-3072': [3072, 1536, 1024, 512],
+        'openai-1536': [1536, 1024, 768, 512],
+    };
+    const options = dims[model] || [1024, 768, 512, 256];
+    dimSelect.innerHTML = options.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+function getRetentionColor(r) {
+    if (r >= 98) return '#2d8a54';
+    if (r >= 90) return '#3da568';
+    if (r >= 80) return '#c67a1a';
+    return '#b33a3a';
+}
+
+function renderRecommendations(scale) {
+    const tbody = document.getElementById('rec-body');
+    tbody.innerHTML = recommendations.map(r => {
+        const scaledCost = (r.cost * scale).toFixed(2);
+        const barWidth = Math.min(r.retention, 102) / 102 * 100;
+        const barColor = getRetentionColor(r.retention);
+        return `<tr>
+            <td style="font-weight:600; color:#999;">${r.rank}</td>
+            <td class="pipeline-name">${r.pipeline}</td>
+            <td>${r.dim}</td>
+            <td>
+                <div class="retention-bar">
+                    <span style="min-width:42px">${r.retention}%</span>
+                    <div class="retention-bar-bg">
+                        <div class="retention-bar-fill" style="width:${barWidth}%; background:${barColor}"></div>
+                    </div>
+                </div>
+            </td>
+            <td class="cost-cell">$${scaledCost}</td>
+            <td class="savings">${r.savings}</td>
+            <td><span class="tag ${r.tagClass}">${r.tag}</span> ${r.useCase}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderScaling() {
+    const sizes = [
+        { label: '1M vectors', mult: 1 },
+        { label: '10M vectors', mult: 10 },
+        { label: '100M vectors', mult: 100 },
+        { label: '1B vectors', mult: 1000 },
+    ];
+    const tbody = document.getElementById('scaling-body');
+    tbody.innerHTML = sizes.map(s => {
+        const fmt = (v) => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : v >= 1 ? `$${v.toFixed(0)}` : `$${v.toFixed(2)}`;
+        return `<tr>
+            <td style="font-weight:600">${s.label}</td>
+            <td class="cost-cell">${fmt(0.46 * s.mult)}/mo</td>
+            <td class="cost-cell" style="color: var(--brand-green-dim)">${fmt(0.06 * s.mult)}/mo</td>
+            <td class="cost-cell" style="color: #999">${fmt(27.47 * s.mult)}/mo</td>
+        </tr>`;
+    }).join('');
+}
+
+let chart = null;
+
+function renderChart(scale) {
+    const ctx = document.getElementById('paretoChart').getContext('2d');
+
+    const pareto = paretoData.filter(d => !d.dominated).sort((a, b) => a.cost - b.cost);
+    const dominated = paretoData.filter(d => d.dominated);
+
+    // Filter out float32 baseline from zoomed view to keep chart readable
+    const paretoZoomed = pareto.filter(d => d.cost < 2);
+    const dominatedZoomed = dominated.filter(d => d.cost < 2);
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Pareto-optimal',
+                    data: paretoZoomed.map(d => ({ x: d.cost * scale, y: d.retention, label: d.label })),
+                    backgroundColor: '#61d790',
+                    borderColor: '#2d8a54',
+                    borderWidth: 2,
+                    pointRadius: 7,
+                    pointHoverRadius: 10,
+                    showLine: true,
+                    tension: 0.3,
+                    fill: false,
+                    borderDash: [],
+                    order: 1,
+                },
+                {
+                    label: 'Dominated methods',
+                    data: dominatedZoomed.map(d => ({ x: d.cost * scale, y: d.retention, label: d.label })),
+                    backgroundColor: 'rgba(180,180,180,0.5)',
+                    borderColor: 'rgba(150,150,150,0.6)',
+                    borderWidth: 1,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointStyle: 'triangle',
+                    order: 2,
+                },
+                {
+                    label: 'Knee point (recommended)',
+                    data: [{ x: 0.11 * scale, y: 98.1, label: 'binary→residual→int8 @ 128d' }],
+                    backgroundColor: '#ff6b35',
+                    borderColor: '#cc4400',
+                    borderWidth: 2,
+                    pointRadius: 10,
+                    pointHoverRadius: 13,
+                    pointStyle: 'star',
+                    order: 0,
+                },
+                {
+                    label: 'float32 baseline ($' + (27.47*scale).toFixed(0) + '/mo, off chart →)',
+                    data: [],
+                    backgroundColor: '#999',
+                    borderColor: '#999',
+                    pointRadius: 6,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: { top: 20, right: 30, bottom: 10, left: 10 }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Monthly Cost ($ / ' + (scale === 1 ? '1M' : scale === 10 ? '10M' : scale === 100 ? '100M' : '1B') + ' vectors)',
+                        font: { size: 13, weight: '600' },
+                        color: '#555',
+                    },
+                    grid: { color: '#f0f0f0' },
+                    ticks: {
+                        callback: v => '$' + v.toFixed(2),
+                        color: '#777',
+                    },
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'NDCG@10 Retention (%)',
+                        font: { size: 13, weight: '600' },
+                        color: '#555',
+                    },
+                    min: 65,
+                    max: 105,
+                    grid: { color: '#f0f0f0' },
+                    ticks: {
+                        callback: v => v + '%',
+                        color: '#777',
+                    },
+                },
+            },
+            plugins: {
+                tooltip: {
+                    backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        title: (items) => items[0]?.raw?.label || '',
+                        label: (item) => {
+                            return [
+                                `Cost: $${item.raw.x.toFixed(2)}/mo`,
+                                `Retention: ${item.raw.y.toFixed(1)}%`
+                            ];
+                        }
+                    }
+                },
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 16,
+                        font: { size: 12 },
+                    }
+                },
+                annotation: {}
+            },
+        }
+    });
+}
+
+function calculate() {
+    const numVec = parseInt(document.getElementById('num-vectors').value);
+    const scale = numVec / 1000000;
+
+    // Update summary
+    document.getElementById('summary-cost').textContent = '$' + (0.11 * scale).toFixed(2);
+    document.getElementById('summary-savings').textContent = '250x';
+    document.getElementById('summary-retention').textContent = '98.1%';
+
+    // Update chart
+    renderChart(scale);
+
+    // Update recommendations
+    renderRecommendations(scale);
+
+    // Animate button
+    const btn = document.querySelector('.btn-calculate');
+    btn.textContent = 'Recalculating...';
+    btn.style.background = '#3da568';
+    setTimeout(() => {
+        btn.textContent = 'Calculate Optimal Compression';
+        btn.style.background = '';
+    }, 600);
+}
+
+// Initial render
+document.addEventListener('DOMContentLoaded', () => {
+    renderChart(1);
+    renderRecommendations(1);
+    renderScaling();
+});
+</script>
+
+</body>
+</html>

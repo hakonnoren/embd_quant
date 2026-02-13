@@ -61,9 +61,22 @@ class MTEBDataLoader:
         queries = {row["_id"]: row["text"] for row in queries_ds}
 
         # Load qrels (test split for evaluation)
-        qrels_ds = load_dataset(
-            f"mteb/{dataset_name}", "default", split="test", trust_remote_code=True
-        )
+        # For MSMARCO, use 'dev' as 'test' is hidden. For others, try 'test' then 'dev' or 'default'.
+        if dataset_name == "msmarco":
+            split_name = "dev"
+        else:
+            split_name = "test"
+            
+        try:
+            qrels_ds = load_dataset(
+                f"mteb/{dataset_name}", "default", split=split_name, trust_remote_code=True
+            )
+        except Exception:
+             # Fallback if test doesn't exist (e.g. some datasets only have train/dev)
+            qrels_ds = load_dataset(
+                f"mteb/{dataset_name}", "default", split="dev", trust_remote_code=True
+            )
+
         qrels = {}
         for row in qrels_ds:
             qid = row["query-id"]

@@ -1,197 +1,177 @@
-"""Brute-force kNN search implementations for different precisions."""
-import numpy as np
-from typing import Tuple
+"""Index building and initial retrieval for all retrieval methods.
+
+Supports float32 (FAISS IndexFlatIP), binary (FAISS IndexBinaryFlat),
+and int4 (NumPy brute-force with reconstructed quaternary vectors).
+"""
+
 import time
+from typing import Tuple
+
+import numpy as np
+
+try:
+    import faiss
+    HAS_FAISS = True
+except ImportError:
+    HAS_FAISS = False
+
+from quantization import QuantizationHandler
 
 
-class BruteForceSearch:
-    """Brute-force nearest neighbor search for various precision types."""
+# ── Truncation & binarization ─────────────────────────────────────────────────
 
-    @staticmethod
-    def search_float(
-        query_embeddings: np.ndarray, corpus_embeddings: np.ndarray, k: int
-    ) -> Tuple[np.ndarray, np.ndarray, float]:
-        """
-        Search using float32 embeddings with cosine similarity.
+def truncate(emb: np.ndarray, dim: int) -> np.ndarray:
+    """Truncate embeddings to first `dim` dimensions."""
+    if dim >= emb.shape[1]:
+        return emb
+    return emb[:, :dim]
 
-        For normalized embeddings, cosine similarity equals dot product.
 
-        Args:
-            query_embeddings: (n_queries, dim) query vectors
-            corpus_embeddings: (n_corpus, dim) corpus vectors
-            k: Number of top results to return
+def binarize(emb: np.ndarray) -> np.ndarray:
+    """Pack float embeddings to binary uint8 (sign-based)."""
+    return np.packbits((emb > 0).astype(np.uint8), axis=1)
 
-        Returns:
-            indices: (n_queries, k) indices of top-k results
-            scores: (n_queries, k) similarity scores
-            latency: total search time in seconds
-        """
-        start = time.perf_counter()
 
-        # Dot product for normalized vectors = cosine similarity
-        similarities = query_embeddings @ corpus_embeddings.T
+# ── Index wrappers ────────────────────────────────────────────────────────────
 
-        # Get top-k indices
-        n_corpus = corpus_embeddings.shape[0]
-        k = min(k, n_corpus)
+class FloatIndex:
+    """FAISS IndexFlatIP wrapper."""
 
-        if k >= n_corpus:
-            indices = np.argsort(-similarities, axis=1)[:, :k]
+    def __init__(self, corpus_emb: np.ndarray):
+        self.d = corpus_emb.shape[1]
+        self.ntotal = corpus_emb.shape[0]
+        self.type = "float32"
+        corpus = np.ascontiguousarray(corpus_emb.astype(np.float32))
+        if HAS_FAISS:
+            self._index = faiss.IndexFlatIP(self.d)
+            self._index.add(corpus)
         else:
-            # Partial sort is faster for large corpus
-            indices = np.argpartition(-similarities, k, axis=1)[:, :k]
-            # Sort the top-k
+            self._corpus = corpus
+
+    def search(self, queries: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
+        k = min(k, self.ntotal)
+        queries = np.ascontiguousarray(queries.astype(np.float32))
+        if HAS_FAISS:
+            scores, indices = self._index.search(queries, k)
+        else:
+            sims = queries @ self._corpus.T
+            indices = np.argpartition(-sims, k, axis=1)[:, :k]
             for i in range(len(indices)):
-                top_k_sims = similarities[i, indices[i]]
-                sorted_idx = np.argsort(-top_k_sims)
-                indices[i] = indices[i, sorted_idx]
+                idx = indices[i]
+                indices[i] = idx[np.argsort(-sims[i, idx])]
+            scores = np.take_along_axis(sims, indices, axis=1)
+        return scores, indices
 
-        scores = np.array([similarities[i, indices[i]] for i in range(len(indices))])
 
-        latency = time.perf_counter() - start
-        return indices, scores, latency
+class BinaryIndex:
+    """FAISS IndexBinaryFlat wrapper (Hamming distance)."""
 
-    @staticmethod
-    def search_int8(
-        query_embeddings: np.ndarray, corpus_embeddings: np.ndarray, k: int
-    ) -> Tuple[np.ndarray, np.ndarray, float]:
-        """
-        Search using int8 embeddings with dot product approximation.
-
-        Int8 embeddings maintain relative ordering for dot product.
-        """
-        start = time.perf_counter()
-
-        # Convert to float for computation, but int8 storage saves memory
-        q = query_embeddings.astype(np.float32)
-        c = corpus_embeddings.astype(np.float32)
-
-        similarities = q @ c.T
-
-        n_corpus = c.shape[0]
-        k = min(k, n_corpus)
-
-        if k >= n_corpus:
-            indices = np.argsort(-similarities, axis=1)[:, :k]
+    def __init__(self, corpus_bin: np.ndarray, num_bits: int):
+        self.d = num_bits
+        self.ntotal = corpus_bin.shape[0]
+        self.type = "binary"
+        corpus = np.ascontiguousarray(corpus_bin.astype(np.uint8))
+        if HAS_FAISS:
+            self._index = faiss.IndexBinaryFlat(num_bits)
+            self._index.add(corpus)
         else:
-            indices = np.argpartition(-similarities, k, axis=1)[:, :k]
-            for i in range(len(indices)):
-                top_k_sims = similarities[i, indices[i]]
-                sorted_idx = np.argsort(-top_k_sims)
-                indices[i] = indices[i, sorted_idx]
+            self._corpus = corpus
 
-        scores = np.array([similarities[i, indices[i]] for i in range(len(indices))])
-
-        latency = time.perf_counter() - start
-        return indices, scores, latency
-
-    @staticmethod
-    def search_binary(
-        query_embeddings: np.ndarray, corpus_embeddings: np.ndarray, k: int
-    ) -> Tuple[np.ndarray, np.ndarray, float]:
-        """
-        Search using binary embeddings with Hamming distance.
-
-        Binary embeddings are packed uint8 from ubinary quantization.
-        Lower Hamming distance = more similar.
-
-        Args:
-            query_embeddings: (n_queries, dim/8) packed binary query vectors
-            corpus_embeddings: (n_corpus, dim/8) packed binary corpus vectors
-            k: Number of top results to return
-
-        Returns:
-            indices: (n_queries, k) indices of top-k results
-            scores: (n_queries, k) negative Hamming distances (higher = more similar)
-            latency: total search time in seconds
-        """
-        start = time.perf_counter()
-
-        n_queries = query_embeddings.shape[0]
-        n_corpus = corpus_embeddings.shape[0]
-        k = min(k, n_corpus)
-
-        # Compute Hamming distances using XOR + popcount
-        # For packed uint8: XOR to find differing bits, then count
-        distances = np.zeros((n_queries, n_corpus), dtype=np.int32)
-
-        for i in range(n_queries):
-            # XOR to find differing bits
-            xor_result = np.bitwise_xor(query_embeddings[i], corpus_embeddings)
-            # Count set bits using unpackbits
-            distances[i] = np.sum(np.unpackbits(xor_result, axis=1), axis=1)
-
-        # Get top-k by minimum distance
-        if k >= n_corpus:
-            indices = np.argsort(distances, axis=1)[:, :k]
+    def search(self, queries: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
+        k = min(k, self.ntotal)
+        queries = np.ascontiguousarray(queries.astype(np.uint8))
+        if HAS_FAISS:
+            distances, indices = self._index.search(queries, k)
+            scores = -distances.astype(np.float32)
         else:
+            n_q = queries.shape[0]
+            distances = np.zeros((n_q, self.ntotal), dtype=np.int32)
+            for i in range(n_q):
+                xor = np.bitwise_xor(queries[i], self._corpus)
+                distances[i] = np.unpackbits(xor, axis=1).sum(axis=1)
             indices = np.argpartition(distances, k, axis=1)[:, :k]
             for i in range(len(indices)):
-                top_k_dist = distances[i, indices[i]]
-                sorted_idx = np.argsort(top_k_dist)
-                indices[i] = indices[i, sorted_idx]
+                idx = indices[i]
+                indices[i] = idx[np.argsort(distances[i, idx])]
+            scores = -np.take_along_axis(distances, indices, axis=1).astype(np.float32)
+        return scores, indices
 
-        # Convert distances to scores (negate so higher is better)
-        scores = np.array(
-            [-distances[i, indices[i]].astype(np.float32) for i in range(len(indices))]
-        )
 
-        latency = time.perf_counter() - start
-        return indices, scores, latency
+class Int4Index:
+    """NumPy brute-force search with reconstructed quaternary (int4) vectors."""
 
-    @staticmethod
-    def search_binary_with_rescore(
-        binary_query: np.ndarray,
-        binary_corpus: np.ndarray,
-        float_query: np.ndarray,
-        float_corpus: np.ndarray,
-        k: int,
-        rescore_multiplier: int = 4,
-    ) -> Tuple[np.ndarray, np.ndarray, float]:
-        """
-        Two-stage search: binary retrieval + float32 rescoring.
+    def __init__(self, corpus_emb: np.ndarray):
+        self.ntotal = corpus_emb.shape[0]
+        self.d = corpus_emb.shape[1]
+        self.type = "int4"
+        quantizer = QuantizationHandler()
+        cal = quantizer.calibrate_quaternary(corpus_emb)
+        codes = quantizer.quantize_to_quaternary(corpus_emb, cal["boundaries"])
+        self._reconstructed = quantizer.reconstruct_quaternary(codes, cal["centroids"])
+        self._calibration = cal
 
-        1. Retrieve rescore_multiplier * k candidates using binary search
-        2. Rescore candidates using float32 query vs float32 corpus
+    def search(self, queries: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
+        k = min(k, self.ntotal)
+        queries = queries.astype(np.float32)
+        sims = queries @ self._reconstructed.T
+        indices = np.argpartition(-sims, k, axis=1)[:, :k]
+        for i in range(len(indices)):
+            idx = indices[i]
+            indices[i] = idx[np.argsort(-sims[i, idx])]
+        scores = np.take_along_axis(sims, indices, axis=1)
+        return scores, indices
 
-        Args:
-            binary_query: Packed binary query embeddings
-            binary_corpus: Packed binary corpus embeddings
-            float_query: Float32 query embeddings (for rescoring)
-            float_corpus: Float32 corpus embeddings (for rescoring)
-            k: Number of final results
-            rescore_multiplier: How many more candidates to retrieve for rescoring
 
-        Returns:
-            indices: (n_queries, k) final top-k indices
-            scores: (n_queries, k) float32 similarity scores
-            latency: total search time in seconds
-        """
-        start = time.perf_counter()
+# ── Index construction ────────────────────────────────────────────────────────
 
-        # Stage 1: Binary retrieval for more candidates
-        candidates_k = min(rescore_multiplier * k, binary_corpus.shape[0])
-        candidate_indices, _, _ = BruteForceSearch.search_binary(
-            binary_query, binary_corpus, candidates_k
-        )
+def build_index(corpus_emb: np.ndarray, retrieval_method: str, truncate_dim: int):
+    """Build a retrieval index.
 
-        # Stage 2: Rescore with float32
-        n_queries = float_query.shape[0]
-        final_indices = np.zeros((n_queries, k), dtype=np.int64)
-        final_scores = np.zeros((n_queries, k), dtype=np.float32)
+    Args:
+        corpus_emb: Full float32 corpus embeddings.
+        retrieval_method: One of "float32", "binary", "int4".
+        truncate_dim: Truncate to this dimension before indexing.
 
-        for i in range(n_queries):
-            cand_idx = candidate_indices[i]
-            cand_embeddings = float_corpus[cand_idx]
+    Returns:
+        Index object with .search(queries, k) -> (scores, indices).
+    """
+    corpus_trunc = truncate(corpus_emb, truncate_dim)
 
-            # Compute float similarities for candidates
-            sims = float_query[i] @ cand_embeddings.T
+    if retrieval_method == "float32":
+        return FloatIndex(corpus_trunc)
+    elif retrieval_method == "binary":
+        corpus_bin = binarize(corpus_trunc)
+        return BinaryIndex(corpus_bin, corpus_trunc.shape[1])
+    elif retrieval_method == "int4":
+        return Int4Index(corpus_trunc)
+    else:
+        raise ValueError(f"Unknown retrieval method: {retrieval_method}")
 
-            # Get top-k from candidates
-            actual_k = min(k, len(sims))
-            top_k_local = np.argsort(-sims)[:actual_k]
-            final_indices[i, :actual_k] = cand_idx[top_k_local]
-            final_scores[i, :actual_k] = sims[top_k_local]
 
-        latency = time.perf_counter() - start
-        return final_indices, final_scores, latency
+def initial_search(index, query_emb: np.ndarray, k: int, oversample: int,
+                   retrieval_method: str, truncate_dim: int):
+    """Run initial retrieval.
+
+    Returns:
+        (scores, candidate_ids, search_sec)
+    """
+    q = truncate(query_emb, truncate_dim)
+    if retrieval_method == "binary":
+        q = binarize(q)
+
+    t0 = time.time()
+    scores, candidate_ids = index.search(q, k * oversample)
+    search_sec = time.time() - t0
+
+    return scores, candidate_ids, search_sec
+
+
+def index_memory_bytes(index) -> int:
+    """Estimate memory usage of an index in bytes."""
+    if index.type == "float32":
+        return index.ntotal * index.d * 4
+    elif index.type == "binary":
+        return index.ntotal * (index.d // 8)
+    elif index.type == "int4":
+        return index.ntotal * max(1, index.d // 4)
+    return 0

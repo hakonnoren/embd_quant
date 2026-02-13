@@ -1,0 +1,496 @@
+schema doc {
+    document doc {
+        field doc_id type string {
+            indexing: summary | attribute
+        }
+        field dataset type string {
+            indexing: summary | attribute | index
+            attribute {
+                fast-search
+            }
+        }
+        field text type string {
+            indexing: summary | index
+            index: enable-bm25
+        }
+        field float_vector type tensor<float>(x[1024]) {
+            indexing: attribute
+            attribute {
+                paged
+                distance-metric: prenormalized-angular
+            }
+        }
+        field int8_vector type tensor<int8>(x[1024]) {
+            indexing: attribute
+            attribute {
+                paged
+            }
+        }
+        field float_512 type tensor<float>(x[512]) {
+            indexing: attribute
+            attribute {
+                paged
+            }
+        }
+        field float_256 type tensor<float>(x[256]) {
+            indexing: attribute
+            attribute {
+                paged
+            }
+        }
+        field float_128 type tensor<float>(x[128]) {
+            indexing: attribute
+            attribute {
+                paged
+            }
+        }
+        field float_64 type tensor<float>(x[64]) {
+            indexing: attribute
+            attribute {
+                paged
+            }
+        }
+        field binary_1024 type tensor<int8>(x[128]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: hamming
+            }
+        }
+        field binary_512 type tensor<int8>(x[64]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: hamming
+            }
+        }
+        field binary_256 type tensor<int8>(x[32]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: hamming
+            }
+        }
+        field binary_128 type tensor<int8>(x[16]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: hamming
+            }
+        }
+        field binary_64 type tensor<int8>(x[8]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: hamming
+            }
+        }
+    }
+    fieldset default {
+        fields: text
+    }
+    rank-profile binary-only {
+        inputs {
+            query(q_binary_1024) tensor<int8>(x[128])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_1024)
+            }
+        }
+        match-features {
+            distance(field, binary_1024)
+        }
+    }
+    rank-profile binary-rescore-unpack {
+        inputs {
+            query(q_binary_1024) tensor<int8>(x[128])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        function unpack_binary() {
+            expression {
+                2*unpack_bits(attribute(binary_1024), float) - 1
+            }
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_1024)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * unpack_binary)
+            }
+        }
+        match-features {
+            distance(field, binary_1024)
+        }
+    }
+    rank-profile binary-rescore-float {
+        inputs {
+            query(q_binary_1024) tensor<int8>(x[128])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_1024)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(float_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_1024)
+        }
+    }
+    rank-profile binary-rescore-int8 {
+        inputs {
+            query(q_binary_1024) tensor<int8>(x[128])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_1024)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(int8_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_1024)
+        }
+    }
+    rank-profile mrl512-binary-rescore-float {
+        inputs {
+            query(q_binary_512) tensor<int8>(x[64])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_512)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(float_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_512)
+        }
+    }
+    rank-profile mrl512-binary-rescore-int8 {
+        inputs {
+            query(q_binary_512) tensor<int8>(x[64])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_512)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(int8_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_512)
+        }
+    }
+    rank-profile mrl512-binary-rescore-unpack {
+        inputs {
+            query(q_binary_512) tensor<int8>(x[64])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        function unpack_binary() {
+            expression {
+                2*unpack_bits(attribute(binary_1024), float) - 1
+            }
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_512)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * unpack_binary)
+            }
+        }
+        match-features {
+            distance(field, binary_512)
+        }
+    }
+    rank-profile mrl256-binary-rescore-float {
+        inputs {
+            query(q_binary_256) tensor<int8>(x[32])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_256)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(float_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_256)
+        }
+    }
+    rank-profile mrl256-binary-rescore-int8 {
+        inputs {
+            query(q_binary_256) tensor<int8>(x[32])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_256)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(int8_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_256)
+        }
+    }
+    rank-profile mrl256-binary-rescore-unpack {
+        inputs {
+            query(q_binary_256) tensor<int8>(x[32])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        function unpack_binary() {
+            expression {
+                2*unpack_bits(attribute(binary_1024), float) - 1
+            }
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_256)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * unpack_binary)
+            }
+        }
+        match-features {
+            distance(field, binary_256)
+        }
+    }
+    rank-profile mrl128-binary-rescore-float {
+        inputs {
+            query(q_binary_128) tensor<int8>(x[16])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_128)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(float_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_128)
+        }
+    }
+    rank-profile mrl128-binary-rescore-int8 {
+        inputs {
+            query(q_binary_128) tensor<int8>(x[16])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_128)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(int8_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_128)
+        }
+    }
+    rank-profile mrl128-binary-rescore-unpack {
+        inputs {
+            query(q_binary_128) tensor<int8>(x[16])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        function unpack_binary() {
+            expression {
+                2*unpack_bits(attribute(binary_1024), float) - 1
+            }
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_128)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * unpack_binary)
+            }
+        }
+        match-features {
+            distance(field, binary_128)
+        }
+    }
+    rank-profile mrl64-binary-rescore-float {
+        inputs {
+            query(q_binary_64) tensor<int8>(x[8])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_64)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(float_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_64)
+        }
+    }
+    rank-profile mrl64-binary-rescore-int8 {
+        inputs {
+            query(q_binary_64) tensor<int8>(x[8])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_64)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * attribute(int8_vector))
+            }
+        }
+        match-features {
+            distance(field, binary_64)
+        }
+    }
+    rank-profile mrl64-binary-rescore-unpack {
+        inputs {
+            query(q_binary_64) tensor<int8>(x[8])             
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        function unpack_binary() {
+            expression {
+                2*unpack_bits(attribute(binary_1024), float) - 1
+            }
+        }
+        first-phase {
+            expression {
+                closeness(field, binary_64)
+            }
+        }
+        second-phase {
+            rerank-count: 800
+            expression {
+                sum(query(q_full) * unpack_binary)
+            }
+        }
+        match-features {
+            distance(field, binary_64)
+        }
+    }
+    rank-profile float-baseline {
+        inputs {
+            query(q_full) tensor<float>(x[1024])             
+        
+        }
+        first-phase {
+            expression {
+                sum(query(q_full) * attribute(float_vector))
+            }
+        }
+    }
+    rank-profile float-mrl512 {
+        inputs {
+            query(q_float_512) tensor<float>(x[512])             
+        
+        }
+        first-phase {
+            expression {
+                sum(query(q_float_512) * attribute(float_512))
+            }
+        }
+    }
+    rank-profile float-mrl256 {
+        inputs {
+            query(q_float_256) tensor<float>(x[256])             
+        
+        }
+        first-phase {
+            expression {
+                sum(query(q_float_256) * attribute(float_256))
+            }
+        }
+    }
+    rank-profile float-mrl128 {
+        inputs {
+            query(q_float_128) tensor<float>(x[128])             
+        
+        }
+        first-phase {
+            expression {
+                sum(query(q_float_128) * attribute(float_128))
+            }
+        }
+    }
+    rank-profile float-mrl64 {
+        inputs {
+            query(q_float_64) tensor<float>(x[64])             
+        
+        }
+        first-phase {
+            expression {
+                sum(query(q_float_64) * attribute(float_64))
+            }
+        }
+    }
+}
