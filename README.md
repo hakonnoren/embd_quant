@@ -40,9 +40,7 @@ quantization_tests/
     binarysearch/          # Vespa application package
 
   notebooks/           # Jupyter notebooks for exploration
-  dead/                # Deprecated code (kept for reference)
   docs/                # Documentation and presentation materials
-    final_talk/        # LaTeX slides
   results/             # Experiment results (gitignored)
   cache/               # Cached embeddings (gitignored)
 ```
